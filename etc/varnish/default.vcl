@@ -18,6 +18,9 @@ backend visible {
 # redefine any of these subroutines, the built-in logic will be
 # appended to your code.
 sub vcl_recv {
+  # first time we send the request to the hidden backend, we retry and then request the visible one.
+  # This affects latency so we need to ensure that backend is healthy enough, for that
+  # we need to set good timeouts.
   if (req.restarts == 0) {
     set req.backend = hidden;
   }else {
@@ -54,6 +57,8 @@ sub vcl_recv {
 # }
 #
 sub vcl_pipe {
+  # when we pipe we are proxying request to clients, ensure that the requests goes to the good backend.
+  # this causes that hidden backend loses requests, but is safer i think.
   if (req.backend == hidden) {
      set req.backend = visible;
   }
@@ -90,6 +95,7 @@ sub vcl_pipe {
 # }
 #
 sub vcl_fetch {
+    # this is the key of the thing, if we just made the request to the hidden backend we discard it and then retry with the other.
     if (req.backend == hidden) {
       return (restart);
     }
