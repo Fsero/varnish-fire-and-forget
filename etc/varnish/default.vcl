@@ -4,15 +4,26 @@
 # Default backend definition.  Set this to point to your content
 # server.
 #
-backend default {
-    .host = "#HOST";
-    .port = "#PORT";
+backend hidden {
+    .host = "web";
+    .port = "80";
+    .connect_timeout = "1s";
+}
+backend visible {
+    .host = "54.164.7.175";
+    .port = "80";
 }
 #
 # Below is a commented-out copy of the default VCL logic.  If you
 # redefine any of these subroutines, the built-in logic will be
 # appended to your code.
-# sub vcl_recv {
+sub vcl_recv {
+  if (req.restarts == 0) {
+    set req.backend = hidden;
+  }else {
+    set req.backend = visible;
+  }
+}
 #     if (req.restarts == 0) {
 # 	if (req.http.x-forwarded-for) {
 # 	    set req.http.X-Forwarded-For =
@@ -42,7 +53,11 @@ backend default {
 #     return (lookup);
 # }
 #
-# sub vcl_pipe {
+sub vcl_pipe {
+  if (req.backend == hidden) {
+     set req.backend = visible;
+  }
+}
 #     # Note that only the first request to the backend will have
 #     # X-Forwarded-For set.  If you use X-Forwarded-For and want to
 #     # have it set for all requests, make sure to have:
@@ -74,7 +89,11 @@ backend default {
 #     return (fetch);
 # }
 #
-# sub vcl_fetch {
+sub vcl_fetch {
+    if (req.backend == hidden) {
+      return (restart);
+    }
+}
 #     if (beresp.ttl <= 0s ||
 #         beresp.http.Set-Cookie ||
 #         beresp.http.Vary == "*") {
