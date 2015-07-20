@@ -1,3 +1,4 @@
+import std;
 # This is a basic VCL configuration file for varnish.  See the vcl(7)
 # man page for details on VCL syntax and semantics.
 #
@@ -7,7 +8,14 @@
 backend hidden {
     .host = "web";
     .port = "80";
-    .connect_timeout = "1s";
+    .probe = {
+                .url = "/";
+                .timeout = 34 ms;
+                .interval = 10ms;
+                .window = 10;
+                .threshold = 8;
+    }
+
 }
 backend visible {
     .host = "54.164.7.175";
@@ -23,6 +31,9 @@ sub vcl_recv {
   # we need to set good timeouts.
   if (req.restarts == 0) {
     set req.backend = hidden;
+    if (!req.backend.healthy) {
+        set req.backend = visible;
+    }
   }else {
     set req.backend = visible;
   }
@@ -116,7 +127,12 @@ sub vcl_fetch {
 #     return (deliver);
 # }
 #
-# sub vcl_error {
+sub vcl_error {
+  if (req.restarts == 0) {
+    std.log("hidden backend is not available, restarting ");
+    return (restart);
+  }
+}
 #     set obj.http.Content-Type = "text/html; charset=utf-8";
 #     set obj.http.Retry-After = "5";
 #     synthetic {"
@@ -138,7 +154,7 @@ sub vcl_fetch {
 # </html>
 # "};
 #     return (deliver);
-# }
+#}
 #
 # sub vcl_init {
 # 	return (ok);
